@@ -33,6 +33,11 @@ func writeContextFiles(workDir, provider string, ctx TaskContextForEnv) error {
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		return fmt.Errorf("write issue_context.md: %w", err)
 	}
+	if strings.TrimSpace(ctx.AgentInstructions) != "" {
+		if err := os.WriteFile(filepath.Join(contextDir, "instructions.md"), []byte(strings.TrimSpace(ctx.AgentInstructions)+"\n"), 0o644); err != nil {
+			return fmt.Errorf("write instructions.md: %w", err)
+		}
+	}
 
 	if len(ctx.AgentSkills) > 0 {
 		skillsDir, err := resolveSkillsDir(workDir, provider)

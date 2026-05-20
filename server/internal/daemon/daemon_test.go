@@ -17,6 +17,7 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/multica-ai/multica/server/internal/daemon/repocache"
 	"github.com/multica-ai/multica/server/pkg/agent"
@@ -972,6 +973,22 @@ func TestExecuteAndDrain_NoRetryWhenSessionEstablished(t *testing.T) {
 	}
 	if int(fb.idx.Load()) != 1 {
 		t.Fatalf("expected 1 call, got %d", fb.idx.Load())
+	}
+}
+
+func TestTruncateToolResultOutput(t *testing.T) {
+	short := strings.Repeat("a", maxStoredToolResultOutputRunes)
+	if got := truncateToolResultOutput(short); got != short {
+		t.Fatalf("short output was changed")
+	}
+
+	long := strings.Repeat("я", maxStoredToolResultOutputRunes+5)
+	got := truncateToolResultOutput(long)
+	if !strings.Contains(got, "[truncated: tool result output exceeded 2000 characters]") {
+		t.Fatalf("missing truncation marker: %q", got)
+	}
+	if utf8.RuneCountInString(strings.Split(got, "\n...")[0]) != maxStoredToolResultOutputRunes {
+		t.Fatalf("unexpected retained rune count")
 	}
 }
 

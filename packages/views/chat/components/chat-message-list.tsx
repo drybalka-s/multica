@@ -28,6 +28,7 @@ import type { ChatMessage, ChatPendingTask, TaskMessagePayload, TaskFailureReaso
 import type { ChatTimelineItem } from "@multica/core/chat";
 import { failureReasonLabel } from "../../agents/components/tabs/task-failure";
 import { TaskStatusPill } from "./task-status-pill";
+import { coalesceTimelineItems } from "../../common/task-transcript";
 import { formatElapsedMs } from "../lib/format";
 import { splitTimeline, extractCopyText } from "../lib/copy-text";
 import { useT } from "../../i18n";
@@ -72,7 +73,7 @@ export function ChatMessageList({
     ...taskMessagesOptions(pendingTaskId ?? ""),
     enabled: canFetchLiveTimeline,
   });
-  const liveTimeline: ChatTimelineItem[] = (liveTaskMessages ?? []).map(toTimelineItem);
+  const liveTimeline: ChatTimelineItem[] = coalesceTimelineItems((liveTaskMessages ?? []).map(toTimelineItem));
   const hasLive = showLiveTimeline && liveTimeline.length > 0;
   const showStatusPill = !!pendingTaskId && !pendingAlreadyPersisted && !!pendingTask;
 
@@ -190,7 +191,7 @@ function AssistantMessage({
     enabled: canFetchTaskMessages,
   });
 
-  const timeline: ChatTimelineItem[] = (taskMessages ?? []).map(toTimelineItem);
+  const timeline: ChatTimelineItem[] = coalesceTimelineItems((taskMessages ?? []).map(toTimelineItem));
 
   // Failure bubble path: when the server's FailTask wrote a failure
   // chat_message (failure_reason set), render a destructive bubble with the

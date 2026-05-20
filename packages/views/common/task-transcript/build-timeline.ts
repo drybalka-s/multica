@@ -11,6 +11,34 @@ export interface TimelineItem {
   output?: string;
 }
 
+function canMergeStreamingText(prev: TimelineItem, next: TimelineItem): boolean {
+  return (prev.type === "thinking" || prev.type === "text") && prev.type === next.type;
+}
+
+/** Merge adjacent text/thinking fragments that were split only by daemon flush timing. */
+export function coalesceTimelineItems(items: TimelineItem[]): TimelineItem[] {
+  const sorted = [...items].sort((a, b) => a.seq - b.seq);
+  const out: TimelineItem[] = [];
+
+  for (const item of sorted) {
+    const prev = out[out.length - 1];
+    if (prev && canMergeStreamingText(prev, item)) {
+      out[out.length - 1] = {
+        ...prev,
+        content: `${prev.content ?? ""}${item.content ?? ""}`,
+      };
+      continue;
+    }
+    out.push(item);
+  }
+
+  return out;
+}
+
+export function appendTimelineItem(items: TimelineItem[], item: TimelineItem): TimelineItem[] {
+  return coalesceTimelineItems([...items, item]);
+}
+
 /** Build a chronologically ordered timeline from raw task messages. */
 export function buildTimeline(msgs: TaskMessagePayload[]): TimelineItem[] {
   const items: TimelineItem[] = [];
@@ -24,5 +52,5 @@ export function buildTimeline(msgs: TaskMessagePayload[]): TimelineItem[] {
       output: msg.output ? redactSecrets(msg.output) : msg.output,
     });
   }
-  return items.sort((a, b) => a.seq - b.seq);
+  return coalesceTimelineItems(items);
 }

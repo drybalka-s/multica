@@ -11,7 +11,9 @@ import { ActorAvatar } from "../../common/actor-avatar";
 import { useActorName } from "@multica/core/workspace/hooks";
 import {
   TranscriptButton,
+  appendTimelineItem,
   buildTimeline,
+  coalesceTimelineItems,
   type TimelineItem,
 } from "../../common/task-transcript";
 import { useT } from "../../i18n";
@@ -122,9 +124,9 @@ export function AgentLiveCard({ issueId }: AgentLiveCardProps) {
             const next = new Map(prev);
             const existing = next.get(task.id);
             if (!existing) return prev;
-            const loadedSeqs = new Set(timeline.map((i) => i.seq));
+            const loadedSeqs = new Set(msgs.map((m) => m.seq));
             const wsOnly = existing.items.filter((i) => !loadedSeqs.has(i.seq));
-            const merged = [...timeline, ...wsOnly].sort((a, b) => a.seq - b.seq);
+            const merged = coalesceTimelineItems([...timeline, ...wsOnly]);
             next.set(task.id, { task: existing.task, items: merged });
             return next;
           });
@@ -169,7 +171,7 @@ export function AgentLiveCard({ issueId }: AgentLiveCardProps) {
         const next = new Map(prev);
         const existing = next.get(msg.task_id);
         if (existing) {
-          const items = [...existing.items, item].sort((a, b) => a.seq - b.seq);
+          const items = appendTimelineItem(existing.items, item);
           next.set(msg.task_id, { ...existing, items });
         }
         return next;

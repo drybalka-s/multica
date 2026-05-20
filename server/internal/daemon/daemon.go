@@ -14,6 +14,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
 	"github.com/multica-ai/multica/server/internal/cli"
 	"github.com/multica-ai/multica/server/internal/daemon/execenv"
@@ -38,6 +39,16 @@ type taskRunnerFunc func(context.Context, Task, string, int, *slog.Logger) (Task
 
 func (f taskRunnerFunc) run(ctx context.Context, task Task, provider string, slot int, log *slog.Logger) (TaskResult, error) {
 	return f(ctx, task, provider, slot, log)
+}
+
+const maxStoredToolResultOutputRunes = 2000
+
+func truncateToolResultOutput(output string) string {
+	if utf8.RuneCountInString(output) <= maxStoredToolResultOutputRunes {
+		return output
+	}
+	runes := []rune(output)
+	return string(runes[:maxStoredToolResultOutputRunes]) + "\n...[truncated: tool result output exceeded 2000 characters]"
 }
 
 var (
@@ -2239,25 +2250,25 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 	// Repos are passed as metadata only — the agent checks them out on demand
 	// via `multica repo checkout <url>`.
 	taskCtx := execenv.TaskContextForEnv{
-		IssueID:                 task.IssueID,
-		TriggerCommentID:        task.TriggerCommentID,
-		AgentID:                 agentID,
-		AgentName:               agentName,
-		AgentInstructions:       instructions,
-		AgentSkills:             convertSkillsForEnv(skills),
-		Repos:                   convertReposForEnv(task.Repos),
-		ProjectID:               task.ProjectID,
-		ProjectTitle:            task.ProjectTitle,
-		ProjectResources:        convertProjectResourcesForEnv(task.ProjectResources),
-		ChatSessionID:           task.ChatSessionID,
-		AutopilotRunID:          task.AutopilotRunID,
-		AutopilotID:             task.AutopilotID,
-		AutopilotTitle:          task.AutopilotTitle,
-		AutopilotDescription:    task.AutopilotDescription,
-		AutopilotSource:         task.AutopilotSource,
-		AutopilotTriggerPayload: strings.TrimSpace(string(task.AutopilotTriggerPayload)),
-		QuickCreatePrompt:       task.QuickCreatePrompt,
-		IsSquadLeader:           strings.Contains(instructions, "## Squad Operating Protocol"),
+		IssueID:                          task.IssueID,
+		TriggerCommentID:                 task.TriggerCommentID,
+		AgentID:                          agentID,
+		AgentName:                        agentName,
+		AgentInstructions:                instructions,
+		AgentSkills:                      convertSkillsForEnv(skills),
+		Repos:                            convertReposForEnv(task.Repos),
+		ProjectID:                        task.ProjectID,
+		ProjectTitle:                     task.ProjectTitle,
+		ProjectResources:                 convertProjectResourcesForEnv(task.ProjectResources),
+		ChatSessionID:                    task.ChatSessionID,
+		AutopilotRunID:                   task.AutopilotRunID,
+		AutopilotID:                      task.AutopilotID,
+		AutopilotTitle:                   task.AutopilotTitle,
+		AutopilotDescription:             task.AutopilotDescription,
+		AutopilotSource:                  task.AutopilotSource,
+		AutopilotTriggerPayload:          strings.TrimSpace(string(task.AutopilotTriggerPayload)),
+		QuickCreatePrompt:                task.QuickCreatePrompt,
+		IsSquadLeader:                    strings.Contains(instructions, "## Squad Operating Protocol"),
 		RequestingUserName:               task.RequestingUserName,
 		RequestingUserProfileDescription: task.RequestingUserProfileDescription,
 	}
@@ -2885,10 +2896,7 @@ func (d *Daemon) executeAndDrain(ctx context.Context, backend agent.Backend, pro
 						}
 					}
 					s := seq.Add(1)
-					output := msg.Output
-					if len(output) > 8192 {
-						output = output[:8192]
-					}
+					output := truncateToolResultOutput(msg.Output)
 					toolName := msg.Tool
 					if toolName == "" && msg.CallID != "" {
 						mu.Lock()

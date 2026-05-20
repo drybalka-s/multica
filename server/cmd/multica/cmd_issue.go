@@ -309,6 +309,8 @@ func init() {
 
 	// issue comment list
 	issueCommentListCmd.Flags().String("output", "table", "Output format: table or json")
+	issueCommentListCmd.Flags().Bool("summary", false, "Output compact JSON summary: id, parent_id, author, created_at, content preview")
+	issueCommentListCmd.Flags().Bool("all", false, "Return the full flat timeline up to the server cap; disables the default --recent 10 window")
 	issueCommentListCmd.Flags().String("since", "", "Only return comments created after this timestamp (RFC3339)")
 	issueCommentListCmd.Flags().String("thread", "", "Comment UUID — return the thread containing this comment (root + every descendant). May be a root or a reply id.")
 	issueCommentListCmd.Flags().Int("tail", 0, "Only valid with --thread. Cap reply count to the N most recent replies; the thread root is always included (even with --tail 0). Use --before/--before-id to scroll to older replies.")
@@ -544,6 +546,22 @@ func runIssueGet(cmd *cobra.Command, args []string) error {
 func isHTTPURL(path string) bool {
 	p := strings.TrimSpace(path)
 	return strings.HasPrefix(p, "http://") || strings.HasPrefix(p, "https://")
+}
+
+func commentSummary(c map[string]any, actors actorDisplayLookup) map[string]any {
+	content := strVal(c, "content")
+	if utf8.RuneCountInString(content) > 100 {
+		runes := []rune(content)
+		content = string(runes[:97]) + "..."
+	}
+	return map[string]any{
+		"id":          strVal(c, "id"),
+		"parent_id":   strVal(c, "parent_id"),
+		"author":      actors.actor(strVal(c, "author_type"), strVal(c, "author_id")),
+		"author_type": strVal(c, "author_type"),
+		"created_at":  strVal(c, "created_at"),
+		"content":     content,
+	}
 }
 
 func runIssueCreate(cmd *cobra.Command, _ []string) error {
@@ -936,6 +954,8 @@ func runIssueCommentList(cmd *cobra.Command, args []string) error {
 
 	since, _ := cmd.Flags().GetString("since")
 	thread, _ := cmd.Flags().GetString("thread")
+	summary, _ := cmd.Flags().GetBool("summary")
+	allComments, _ := cmd.Flags().GetBool("all")
 	recent, _ := cmd.Flags().GetInt("recent")
 	tail, _ := cmd.Flags().GetInt("tail")
 	// Flags().Changed distinguishes "user did not pass --recent" from
@@ -953,6 +973,9 @@ func runIssueCommentList(cmd *cobra.Command, args []string) error {
 	// Mirror the server-side combination rules client-side so the user gets
 	// a clear local error instead of a 400 round-trip. These match the
 	// validation in handler.ListComments (server/internal/handler/comment.go).
+	if allComments && (thread != "" || recentSet || before != "" || beforeID != "") {
+		return fmt.Errorf("--all cannot be combined with --thread, --recent, --before, or --before-id")
+	}
 	if recentSet && recent <= 0 {
 		return fmt.Errorf("--recent must be a positive integer")
 	}
@@ -970,6 +993,10 @@ func runIssueCommentList(cmd *cobra.Command, args []string) error {
 	}
 	if before != "" && !recentSet && !(thread != "" && tailSet) {
 		return fmt.Errorf("--before / --before-id require --recent (thread cursor) or --thread + --tail (reply cursor)")
+	}
+	if thread == "" && !recentSet && !allComments {
+		recent = 10
+		recentSet = true
 	}
 
 	params := url.Values{}
@@ -1017,12 +1044,20 @@ func runIssueCommentList(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	actors := loadActorDisplayLookup(ctx, client)
+	if summary {
+		summaries := make([]map[string]any, 0, len(comments))
+		for _, c := range comments {
+			summaries = append(summaries, commentSummary(c, actors))
+		}
+		return cli.PrintJSON(os.Stdout, summaries)
+	}
+
 	output, _ := cmd.Flags().GetString("output")
 	if output == "json" {
 		return cli.PrintJSON(os.Stdout, comments)
 	}
 
-	actors := loadActorDisplayLookup(ctx, client)
 	headers := []string{"ID", "PARENT", "AUTHOR", "TYPE", "CONTENT", "CREATED"}
 	rows := make([][]string, 0, len(comments))
 	for _, c := range comments {
