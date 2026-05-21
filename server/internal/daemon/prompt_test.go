@@ -230,7 +230,7 @@ func TestBuildPromptCommentTriggerPromotesThreadReads(t *testing.T) {
 		"Next reply cursor:",
 		"--before-id <reply-id>",
 		// --recent stays as the cross-thread background fallback.
-		"--recent 20 --output json",
+		"--recent 20 --summary --output json",
 		// Cursor walks via the stderr line the CLI emits, not invented flags.
 		"Next thread cursor",
 		"--before",
@@ -271,7 +271,7 @@ func TestBuildPromptCommentTriggerPromotesThreadReads(t *testing.T) {
 func TestBuildPromptDefaultMentionsRecent(t *testing.T) {
 	out := BuildPrompt(Task{IssueID: "issue-default-1"}, "claude")
 	for _, s := range []string{
-		"--recent 20 --output json",
+		"--recent 20 --summary --output json",
 		"Next thread cursor:",
 		"--since",
 	} {

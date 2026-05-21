@@ -3121,7 +3121,7 @@ func TestInjectRuntimeConfigCommentTriggerThreadFirstReads(t *testing.T) {
 		"Next reply cursor:",
 		"--before-id <reply-id>",
 		// --recent fallback at the documented default N=20 for cross-thread context.
-		"multica issue comment list " + issueID + " --recent 20 --output json",
+		"multica issue comment list " + issueID + " --recent 20 --summary --output json",
 		// Cursor walks via the stderr line the CLI emits, not invented flags.
 		"Next thread cursor",
 		"--before",
@@ -3146,6 +3146,8 @@ func TestInjectRuntimeConfigCommentTriggerThreadFirstReads(t *testing.T) {
 		"[--thread <comment-id>",
 		"--tail N",
 		"--recent N",
+		"--all",
+		"--summary",
 		"Next reply cursor",
 		"Next thread cursor",
 	} {
@@ -3186,7 +3188,7 @@ func TestInjectRuntimeConfigAssignmentTriggerMentionsRecent(t *testing.T) {
 
 	// Mandatory full-history rule (MUL-1124) must stay.
 	for _, want := range []string{
-		"multica issue comment list issue-1 --output json",
+		"multica issue comment list issue-1 --all --output json",
 		"this is mandatory, not optional",
 		"Skipping this step is the most common cause",
 	} {
@@ -3196,7 +3198,7 @@ func TestInjectRuntimeConfigAssignmentTriggerMentionsRecent(t *testing.T) {
 	}
 	// AND --recent must be offered as the long-issue alternative.
 	for _, want := range []string{
-		"--recent 20 --output json",
+		"--recent 20 --summary --output json",
 		"Next thread cursor:",
 	} {
 		if !strings.Contains(s, want) {
@@ -3328,10 +3330,10 @@ func TestInjectRuntimeConfigIssueMetadataSectionScope(t *testing.T) {
 			want: withSection,
 		},
 		{
-			name:                "assignment_triggered",
-			ctx:                 TaskContextForEnv{IssueID: "issue-md-2"},
-			provider:            "claude",
-			filename:            "CLAUDE.md",
+			name:     "assignment_triggered",
+			ctx:      TaskContextForEnv{IssueID: "issue-md-2"},
+			provider: "claude",
+			filename: "CLAUDE.md",
 			workflowStepPresent: []string{
 				"multica issue metadata list issue-md-2 --output json",
 				"See the `## Issue Metadata` section above",
